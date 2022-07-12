@@ -1,2 +1,2 @@
-add_subdirectory(ZHigh)
-add_subdirectory(ZLow)
+add_subdirectory(SMaLL)
+add_subdirectory(TiNY)

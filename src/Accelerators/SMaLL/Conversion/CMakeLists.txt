@@ -1,2 +1,3 @@
 add_subdirectory(ONNXToSMaLL)
-
+add_subdirectory(SMaLLToTiNY)
+add_subdirectory(TiNYToLLVM)
