@@ -1,0 +1,21 @@
+get_property(OMLibs GLOBAL PROPERTY ONNX_MLIR_LIBS)
+
+add_onnx_mlir_library(SMaLLCompilerUtils
+  SMaLLCompilerUtils.cpp
+
+  EXCLUDE_FROM_OM_LIBS
+
+  INCLUDE_DIRS PRIVATE
+  ${SMaLL_SRC_ROOT}
+  ${SMaLL_BIN_ROOT}
+  ${SMaLL_ONNX_MLIR_SRC_ROOT}
+  ${SMaLL_ONNX_MLIR_BIN_ROOT}
+
+  LINK_LIBS PUBLIC
+  ${OMLibs}
+  CompilerPasses
+
+  ACCEL_INCLUDE_DIRS PRIVATE
+  ${SMaLL_ONNX_MLIR_SRC_ROOT}
+  ${SMaLL_ONNX_MLIR_BIN_ROOT}
+  )
