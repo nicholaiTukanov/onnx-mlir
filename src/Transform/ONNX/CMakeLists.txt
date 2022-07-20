@@ -20,6 +20,7 @@ add_onnx_mlir_rewriter(ConstProp)
 
 add_onnx_mlir_library(OMONNXRewrite
   Decompose.cpp
+  DecomposeEinsum.cpp
   ConstProp.cpp
 
   DEPENDS
@@ -66,6 +67,15 @@ add_onnx_mlir_library(OMOpTransform
 
 add_onnx_mlir_library(OMONNXPreKrnlVerifyONNX
   ONNXPreKrnlVerifyPass.cpp
+
+  LINK_LIBS PUBLIC
+  OMONNXOps
+  MLIRPass
+  OMSupport
+  )
+
+add_onnx_mlir_library(OMONNXPrintSMaLLPass
+  ONNXPrintSMaLLPass.cpp
 
   LINK_LIBS PUBLIC
   OMONNXOps

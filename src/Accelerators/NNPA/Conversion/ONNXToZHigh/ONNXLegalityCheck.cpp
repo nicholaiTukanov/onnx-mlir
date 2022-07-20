@@ -617,7 +617,7 @@ bool isSuitableForZDNN<ONNXLSTMOp>(ONNXLSTMOp op) {
   // other inputs.
   if (op.hidden_size() && (op.hidden_size().getValue() != hidden_size))
     return false;
-  // zDNN does not support input_forgaet.
+  // zDNN does not support input_forget.
   if (op.input_forget() != 0)
     return false;
   return true;
@@ -829,6 +829,7 @@ bool isSuitableForZDNN<ONNXConvOp>(ONNXConvOp op) {
           [](IndexExpr val) { return !val.isLiteral(); }))
     return false;
 
+  int64_t inputShapeC = shapeInput[1];
   int64_t inputShapeH = shapeInput[2];
   int64_t inputShapeW = shapeInput[3];
   int64_t outputShapeH = shapeOutput[2];
@@ -846,6 +847,12 @@ bool isSuitableForZDNN<ONNXConvOp>(ONNXConvOp op) {
   bool isWOK = checkConv2DParamRestrictions(
       inputShapeW, kernelShapeW, stridesW, outputShapeW, paddingType);
   if (!isWOK)
+    return false;
+
+  // Currently disable the generation of Conv2D when parameters are C != 1, kH =
+  // 1, kW=1 because of current issue #1517.  When fixed, please remove lit test
+  // test_onnx_conv2d_not_lowered_c_not_1_kernel11.
+  if (inputShapeC != 1 && kernelShapeH == 1 && kernelShapeW == 1)
     return false;
 
   return true;

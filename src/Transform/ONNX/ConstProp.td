@@ -58,6 +58,12 @@ def IsFromDenseONNXConstantOp:
     Constraint<CPred<"isFromDenseONNXConstantOp($_self)">,
   "Value is produced by a dense ONNXConstantOp">;
 
+def IsFromDenseONNXConstantOpOrNone:
+  Constraint<
+    CPred<"isFromDenseONNXConstantOp($_self) || ($_self.getType().isa<NoneType>())">,
+    "Value is none or produced by a dense ONNXConstantOp"
+  >;
+
 // Usefult code generation invokation.
 def GetNullAttr : NativeCodeCall<"Attribute()">;
 
@@ -70,6 +76,9 @@ def CreateAddOfTwoConst :
 
 def CreateSubOfTwoConst :
    NativeCodeCall<"ConstPropElementwiseBinary<mlir::ONNXSubOp>($_builder, $0, $1, $2)">;
+
+def CreateCastOfConst :
+   NativeCodeCall<"ConstPropCast($_builder, $0, $1)">;
 
 def CreateNegOfConst :
    NativeCodeCall<"ConstPropElementwiseUnary<mlir::ONNXNegOp>($_builder, $0, $1)">;
@@ -94,6 +103,9 @@ def CreateUnsqueezeOfConst:
 
 def CreateSqueezeOfConst:
    NativeCodeCall<"ConstPropSqueeze($_builder, $0, $1)">;
+
+def CreateSliceOfConst:
+   NativeCodeCall<"ConstPropSlice($_builder, $0, $1)">;
 
 //===----------------------------------------------------------------------===//
 // Patterns to enable opportunities with elementwise ADD operations.
@@ -177,7 +189,15 @@ def SubConstProp : Pat<
     (CreateSubOfTwoConst $subOp, $lhs, $rhs),
     [(IsFromDenseONNXConstantOp:$lhs), (IsFromDenseONNXConstantOp:$rhs)]>;
 
-// Neg of constant is simly -const
+// Cast of constant is simply a constant with the new type.
+def CastofConst :  Pat<
+    // From (c)
+    (ONNXCastOp:$castOp (ONNXConstantOp:$input $_, $_, $_, $_, $_, $_, $_, $_), $to),
+    // To (c)
+    (CreateCastOfConst $castOp, $input),
+    [(IsFromDenseONNXConstantOp:$input)]>;
+
+// Neg of constant is simply -const
 def NegofConst :  Pat<
     // From - (c)
     (ONNXNegOp:$negOp (ONNXConstantOp:$input $_, $_, $_, $_, $_, $_, $_, $_)),
@@ -294,7 +314,6 @@ def DivConstProp : Pat<
 // Patterns to enable opportunities with Transpose operations.
 //===----------------------------------------------------------------------===//
 
-// Neg of constant is simly -const
 def TransposeofConst :  Pat<
     // From TransposeOp(c, p)
     (ONNXTransposeOp:$resOp (ONNXConstantOp:$input $_, $_, $_, $_, $_, $_, $_, $_), $_),
@@ -337,5 +356,19 @@ def SqueezeV11ofConst :  Pat<
     // To c' where c' is the unsqueezed value.
     (CreateSqueezeOfConst $resOp, $input),
     [(IsFromDenseONNXConstantOp:$input)]>;
+
+//===----------------------------------------------------------------------===//
+// Patterns to enable opportunities with Slice operations.
+//===----------------------------------------------------------------------===//
+
+def SliceofConst :  Pat<
+    // From Slice (x, starts, ends, axes, steps)
+    (ONNXSliceOp:$resOp (ONNXConstantOp:$input $_, $_, $_, $_, $_, $_, $_, $_),
+                        $starts, $ends, $axes, $steps),
+    // To c' where c' is the sliced value.
+    (CreateSliceOfConst $resOp, $input),
+    [(IsFromDenseONNXConstantOp:$input), (IsFromDenseONNXConstantOp:$starts),
+     (IsFromDenseONNXConstantOp:$ends), (IsFromDenseONNXConstantOpOrNone:$axes),
+     (IsFromDenseONNXConstantOpOrNone:$steps)]>;
 
 #endif // ONNX_CONSTPROP
