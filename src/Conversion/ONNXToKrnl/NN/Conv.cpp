@@ -249,7 +249,10 @@ struct ONNXConvOpLowering : public OpConversionPattern<ONNXConvOp> {
     Value alloc =
         create.mem.alignedAlloc(memRefType, shapeHelper.getOutputDims());
 
-    convUnoptimized(rewriter, convOp, adaptor, shapeHelper, memRefType, alloc);
+    // convUnoptimized(rewriter, convOp, adaptor, shapeHelper, memRefType, alloc);
+
+    std::vector<std::string> attributeNames = {};
+    rewriter.create<KrnlCallOp>(loc, "Conv2D", alloc, op, operands, attributeNames);
 
     rewriter.replaceOp(op, alloc);
     onnxToKrnlSimdReport(op);
