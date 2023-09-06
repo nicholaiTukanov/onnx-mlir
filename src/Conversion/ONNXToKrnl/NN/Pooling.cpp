@@ -498,7 +498,7 @@ struct ONNXPoolOpLowering : public OpConversionPattern<PoolOp> {
     //           outputIndicesInValue, shapeHelper.kernelShape, fullWindowSize);
     //     });
 
-    std::vector<std::string> attributeNames = {"kernel_shape", "strides"};
+    std::vector<std::string> attributeNames = {"kernel_shape","strides", "pads"};
     rewriter.create<KrnlCallOp>(loc, op->getName().stripDialect().str(), alloc, op, operands, attributeNames);
 
     rewriter.replaceOp(op, alloc);

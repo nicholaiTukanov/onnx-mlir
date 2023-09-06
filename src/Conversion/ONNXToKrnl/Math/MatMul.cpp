@@ -458,57 +458,60 @@ struct ONNXMatMulOpLowering : public OpConversionPattern<ONNXMatMulOp> {
     Value alloc =
         create.mem.alignedAlloc(outputMemRefType, shapeHelper.getOutputDims());
 
-    // Get the constants: zero.
-    Value zero = create.math.constant(elementType, 0);
+    std::vector<std::string> attributeNames = {};
+    rewriter.create<KrnlCallOp>(loc, op->getName().stripDialect().str(), alloc, op, operands, attributeNames);
 
-    Value A(adaptor.getA()), B(adaptor.getB());
-    int aRank = A.getType().cast<MemRefType>().getShape().size();
-    int bRank = B.getType().cast<MemRefType>().getShape().size();
-    int cRank = alloc.getType().cast<MemRefType>().getShape().size();
-    if (enableTiling && aRank == 2 && bRank == 2) {
-      // Optimized Matmul only when 2D and allowed to tile and unroll.
-      assert(cRank == 2 && "expected IxK * KxJ = IxJ 2D result");
-      replace2x2Matmul2d(op, adaptor, elementType, shapeHelper, alloc, zero,
-          rewriter, loc, enableParallel);
-    } else if (enableTiling && aRank == 2 && bRank > 2) {
-      // Broadcasting B.
-      assert(cRank == bRank && "expected IxK * *xKxJ = *xIxJ result");
-      replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
-          /*broadcasting B*/ true,
-          /*same static broadcast*/ false, alloc, zero, rewriter, loc,
-          enableParallel);
-    } else if (enableTiling && aRank > 2 && bRank == 2) {
-      // Broadcasting A.
-      assert(cRank == aRank && "expected IxK * *xKxJ = *xIxJ result");
-      replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
-          /*broadcasting B*/ false,
-          /*same static broadcast*/ false, alloc, zero, rewriter, loc,
-          enableParallel);
-    } else {
-      // Test if have A and B have identical batch size.
-      bool sameBatchSize = (enableTiling && aRank > 2 && aRank == bRank);
-      if (sameBatchSize) {
-        for (int i = 0; i < aRank - 2; ++i)
-          // Note that using A and B from the operation instead of adaptor.
-          // It's because DimAnalysis has been done on operations.
-          if (!dimAnalysis->sameDim(matMulOp.getA(), i, matMulOp.getB(), i)) {
-            sameBatchSize = false;
-            break;
-          }
-      }
-      // While there is technically no broadcasting there, we can use nearly the
-      // same logic as in replace2x2Matmul2dBroadcasting. So reuse that code.
-      if (sameBatchSize) {
-        assert(cRank == aRank && "expected IxK * *xKxJ = *xIxJ result");
-        replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
-            /*broadcasting B*/ true,
-            /*same static broadcast*/ true, alloc, zero, rewriter, loc,
-            enableParallel);
-      } else {
-        replaceGenericMatmul(op, adaptor, elementType, shapeHelper, alloc, zero,
-            rewriter, loc, enableParallel);
-      }
-    }
+    // Get the constants: zero.
+    // Value zero = create.math.constant(elementType, 0);
+
+    // Value A(adaptor.getA()), B(adaptor.getB());
+    // int aRank = A.getType().cast<MemRefType>().getShape().size();
+    // int bRank = B.getType().cast<MemRefType>().getShape().size();
+    // int cRank = alloc.getType().cast<MemRefType>().getShape().size();
+    // if (enableTiling && aRank == 2 && bRank == 2) {
+    //   // Optimized Matmul only when 2D and allowed to tile and unroll.
+    //   assert(cRank == 2 && "expected IxK * KxJ = IxJ 2D result");
+    //   replace2x2Matmul2d(op, adaptor, elementType, shapeHelper, alloc, zero,
+    //       rewriter, loc, enableParallel);
+    // } else if (enableTiling && aRank == 2 && bRank > 2) {
+    //   // Broadcasting B.
+    //   assert(cRank == bRank && "expected IxK * *xKxJ = *xIxJ result");
+    //   replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
+    //       /*broadcasting B*/ true,
+    //       /*same static broadcast*/ false, alloc, zero, rewriter, loc,
+    //       enableParallel);
+    // } else if (enableTiling && aRank > 2 && bRank == 2) {
+    //   // Broadcasting A.
+    //   assert(cRank == aRank && "expected IxK * *xKxJ = *xIxJ result");
+    //   replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
+    //       /*broadcasting B*/ false,
+    //       /*same static broadcast*/ false, alloc, zero, rewriter, loc,
+    //       enableParallel);
+    // } else {
+    //   // Test if have A and B have identical batch size.
+    //   bool sameBatchSize = (enableTiling && aRank > 2 && aRank == bRank);
+    //   if (sameBatchSize) {
+    //     for (int i = 0; i < aRank - 2; ++i)
+    //       // Note that using A and B from the operation instead of adaptor.
+    //       // It's because DimAnalysis has been done on operations.
+    //       if (!dimAnalysis->sameDim(matMulOp.getA(), i, matMulOp.getB(), i)) {
+    //         sameBatchSize = false;
+    //         break;
+    //       }
+    //   }
+    //   // While there is technically no broadcasting there, we can use nearly the
+    //   // same logic as in replace2x2Matmul2dBroadcasting. So reuse that code.
+    //   if (sameBatchSize) {
+    //     assert(cRank == aRank && "expected IxK * *xKxJ = *xIxJ result");
+    //     replace2x2Matmul2dBroadcasting(op, adaptor, elementType, shapeHelper,
+    //         /*broadcasting B*/ true,
+    //         /*same static broadcast*/ true, alloc, zero, rewriter, loc,
+    //         enableParallel);
+    //   } else {
+    //     replaceGenericMatmul(op, adaptor, elementType, shapeHelper, alloc, zero,
+    //         rewriter, loc, enableParallel);
+    //   }
+    // }
     // Done.
     rewriter.replaceOp(op, alloc);
     return success();

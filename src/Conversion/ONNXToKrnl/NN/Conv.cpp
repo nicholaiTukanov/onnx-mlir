@@ -232,9 +232,8 @@ struct ONNXConvOpLowering : public OpConversionPattern<ONNXConvOp> {
     Location loc = ONNXLoc<ONNXConvOp>(op);
     ValueRange operands = adaptor.getOperands();
 
-    int num_operands = operands.size();
-    llvm::outs() << op << "\n";
-    llvm::outs() << num_operands << "\n";
+    // llvm::outs() << op->getName() << "\n";
+    // llvm::outs() << convOp.getB().getType().isa<NoneType>() << "\n";
 
     // Get shape.
     MultiDialectBuilder<IndexExprBuilderForKrnl, MemRefBuilder> create(
@@ -256,7 +255,11 @@ struct ONNXConvOpLowering : public OpConversionPattern<ONNXConvOp> {
     // convUnoptimized(rewriter, convOp, adaptor, shapeHelper, memRefType, alloc);
 
     std::vector<std::string> attributeNames = {"pads", "strides"};
-    rewriter.create<KrnlCallOp>(loc, "Conv2D_bias", alloc, op, operands, attributeNames);
+
+    if(convOp.getB().getType().isa<NoneType>())
+      rewriter.create<KrnlCallOp>(loc, "Conv2D", alloc, op, operands, attributeNames);
+    else
+      rewriter.create<KrnlCallOp>(loc, "Conv2D_bias", alloc, op, operands, attributeNames);
 
     rewriter.replaceOp(op, alloc);
     onnxToKrnlSimdReport(op);

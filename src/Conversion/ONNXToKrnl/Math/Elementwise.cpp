@@ -1913,7 +1913,7 @@ struct ONNXElementwiseUnaryOpLowering
            "Failed to convert type to MemRefType");
     MemRefType outputMemRefType = convertedType.cast<MemRefType>();
     int64_t outputRank = outputMemRefType.getRank();
-    Type elementType = outputMemRefType.getElementType();
+    // Type elementType = outputMemRefType.getElementType();
 
     // Shape helper.
     MDBuilder create(rewriter, loc);
@@ -1955,8 +1955,8 @@ struct ONNXElementwiseUnaryOpLowering
     // Insert an allocation for the result of this operation.
     Value alloc = create.mem.alignedAlloc(
         outputMemRefType, shapeHelper.getOutputDims(), alignment);
-      
-    std::vector<std::string> attributeNames = {"kernel_shape", "strides"};
+    
+    std::vector<std::string> attributeNames = {};
     rewriter.create<KrnlCallOp>(loc, op->getName().stripDialect().str(), alloc, op, operands, attributeNames);
 
     // Only create krnl.iterate if one of the operands is not scalar tensor.
@@ -2056,8 +2056,8 @@ struct ONNXElementwiseBinaryOpLowering
     assert(convertedType && convertedType.isa<MemRefType>() &&
            "Failed to convert type to MemRefType");
     MemRefType outputMemRefType = convertedType.cast<MemRefType>();
-    Type outputElementType = outputMemRefType.getElementType();
-    uint64_t outputRank = outputMemRefType.getRank();
+    // Type outputElementType = outputMemRefType.getElementType();
+    // uint64_t outputRank = outputMemRefType.getRank();
 
     // Shape helper.
     MDBuilder create(rewriter, loc);
@@ -2123,58 +2123,61 @@ struct ONNXElementwiseBinaryOpLowering
     Value alloc = create.mem.alignedAlloc(
         outputMemRefType, shapeHelper.getOutputDims(), alignment);
 
+    std::vector<std::string> attributeNames = {};
+    rewriter.create<KrnlCallOp>(loc, op->getName().stripDialect().str(), alloc, op, operands, attributeNames);
+
     // Only create krnl.iterate if one of the operands is not scalar tensor.
-    if (!isScalar) {
-      ValueRange loopDef = create.krnl.defineLoops(outputRank);
-      SmallVector<IndexExpr, 4> lbs(outputRank, LiteralIndexExpr(0));
-      SmallVector<IndexExpr, 4> ubs;
-      create.krnlIE.getShapeAsDims(alloc, ubs);
-      // TODO adjust in the future
-      if (enableParallel) {
-        create.krnl.parallel(loopDef[0]);
-        LLVM_DEBUG(llvm::dbgs() << "[Parallel Op]: " << op->getName() << "\n");
-      }
-      create.krnl.iterateIE(loopDef, loopDef, lbs, ubs,
-          [&](KrnlBuilder &createKrnl, ValueRange loopInd) {
-            IndexExprScope innerScope(createKrnl, shapeHelper.getScope());
-            SmallVector<IndexExpr, 4> outputAccessExprs;
-            getIndexExprList<DimIndexExpr>(loopInd, outputAccessExprs);
+    // if (!isScalar) {
+    //   ValueRange loopDef = create.krnl.defineLoops(outputRank);
+    //   SmallVector<IndexExpr, 4> lbs(outputRank, LiteralIndexExpr(0));
+    //   SmallVector<IndexExpr, 4> ubs;
+    //   create.krnlIE.getShapeAsDims(alloc, ubs);
+    //   // TODO adjust in the future
+    //   if (enableParallel) {
+    //     create.krnl.parallel(loopDef[0]);
+    //     LLVM_DEBUG(llvm::dbgs() << "[Parallel Op]: " << op->getName() << "\n");
+    //   }
+    //   create.krnl.iterateIE(loopDef, loopDef, lbs, ubs,
+    //       [&](KrnlBuilder &createKrnl, ValueRange loopInd) {
+    //         IndexExprScope innerScope(createKrnl, shapeHelper.getScope());
+    //         SmallVector<IndexExpr, 4> outputAccessExprs;
+    //         getIndexExprList<DimIndexExpr>(loopInd, outputAccessExprs);
 
-            // Load the first value.
-            SmallVector<IndexExpr, 4> lhsAccessExprs;
-            LogicalResult res =
-                shapeHelper.getAccessExprs(operands[0], 0, outputAccessExprs,
-                    lhsAccessExprs, /*flattened dims*/ false, hasNoBroadcast);
-            assert(succeeded(res) && "Could not compute access indices");
-            Value lhs = createKrnl.loadIE(operands[0], lhsAccessExprs);
+    //         // Load the first value.
+    //         SmallVector<IndexExpr, 4> lhsAccessExprs;
+    //         LogicalResult res =
+    //             shapeHelper.getAccessExprs(operands[0], 0, outputAccessExprs,
+    //                 lhsAccessExprs, /*flattened dims*/ false, hasNoBroadcast);
+    //         assert(succeeded(res) && "Could not compute access indices");
+    //         Value lhs = createKrnl.loadIE(operands[0], lhsAccessExprs);
 
-            // Load the second value.
-            SmallVector<IndexExpr, 4> rhsAccessExprs;
-            res = shapeHelper.getAccessExprs(operands[1], 1, outputAccessExprs,
-                rhsAccessExprs, /*flattened dims*/ false, hasNoBroadcast);
-            assert(succeeded(res) && "Could not compute access indices");
-            Value rhs = createKrnl.loadIE(operands[1], rhsAccessExprs);
+    //         // Load the second value.
+    //         SmallVector<IndexExpr, 4> rhsAccessExprs;
+    //         res = shapeHelper.getAccessExprs(operands[1], 1, outputAccessExprs,
+    //             rhsAccessExprs, /*flattened dims*/ false, hasNoBroadcast);
+    //         assert(succeeded(res) && "Could not compute access indices");
+    //         Value rhs = createKrnl.loadIE(operands[1], rhsAccessExprs);
 
-            // Apply the element-wise function.
-            Value result = emitScalarOpFor<ElementwiseBinaryOp>(
-                rewriter, loc, op, outputElementType, {lhs, rhs});
+    //         // Apply the element-wise function.
+    //         Value result = emitScalarOpFor<ElementwiseBinaryOp>(
+    //             rewriter, loc, op, outputElementType, {lhs, rhs});
 
-            result = opFusionHelper.emitFuseOps(result, loopInd);
-            // Store result in the resulting array.
-            createKrnl.store(result, alloc, loopInd);
-          });
-    } else {
-      Value lhs = create.krnl.load(operands[0]);
-      Value rhs = create.krnl.load(operands[1]);
+    //         result = opFusionHelper.emitFuseOps(result, loopInd);
+    //         // Store result in the resulting array.
+    //         createKrnl.store(result, alloc, loopInd);
+    //       });
+    // } else {
+    //   Value lhs = create.krnl.load(operands[0]);
+    //   Value rhs = create.krnl.load(operands[1]);
 
-      // Apply the element-wise function.
-      Value result = emitScalarOpFor<ElementwiseBinaryOp>(
-          rewriter, loc, op, outputElementType, {lhs, rhs});
+    //   // Apply the element-wise function.
+    //   Value result = emitScalarOpFor<ElementwiseBinaryOp>(
+    //       rewriter, loc, op, outputElementType, {lhs, rhs});
 
-      result = opFusionHelper.emitFuseOps(result);
-      // Store result in the resulting array.
-      create.krnl.store(result, alloc);
-    }
+    //   result = opFusionHelper.emitFuseOps(result);
+    //   // Store result in the resulting array.
+    //   create.krnl.store(result, alloc);
+    // }
 
     // Replace the last Op with alloc and delete the other Ops
     opFusionHelper.replaceOrEraseONNXOps(alloc);
