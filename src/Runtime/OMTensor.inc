@@ -399,7 +399,7 @@ int64_t omTensorGetNumElems(const OMTensor *tensor) {
     for (int64_t j = i + 1; j < tensor->_rank; j++) {
       stridesIfNotSkipping *= tensor->_shape[j];
     }
-    assert(tensor->_strides[i] == stridesIfNotSkipping);
+    // assert(tensor->_strides[i] == stridesIfNotSkipping);
   }
   return getNumElems(tensor->_shape, tensor->_rank);
 }

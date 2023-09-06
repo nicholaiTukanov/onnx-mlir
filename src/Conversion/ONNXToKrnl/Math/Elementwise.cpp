@@ -1874,6 +1874,7 @@ struct ONNXElementwiseUnaryOpLowering
 
   LogicalResult matchAndRewrite(ElementwiseUnaryOp elmsOp, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const final {
+
     Operation *op = elmsOp.getOperation();
     ValueRange operands = adaptor.getOperands();
 
@@ -1954,61 +1955,64 @@ struct ONNXElementwiseUnaryOpLowering
     // Insert an allocation for the result of this operation.
     Value alloc = create.mem.alignedAlloc(
         outputMemRefType, shapeHelper.getOutputDims(), alignment);
+      
+    std::vector<std::string> attributeNames = {"kernel_shape", "strides"};
+    rewriter.create<KrnlCallOp>(loc, op->getName().stripDialect().str(), alloc, op, operands, attributeNames);
 
     // Only create krnl.iterate if one of the operands is not scalar tensor.
-    if (!isScalar) {
-      ValueRange loopDef = create.krnl.defineLoops(outputRank);
-      SmallVector<IndexExpr, 4> lbs(outputRank, LiteralIndexExpr(0));
-      SmallVector<IndexExpr, 4> ubs;
-      create.krnlIE.getShapeAsDims(X, ubs);
-      if (enableParallel) {
-        create.krnl.parallel(loopDef[0]);
-        LLVM_DEBUG(llvm::dbgs() << "[Parallel Op]: " << op->getName() << "\n");
-      }
-      create.krnl.iterateIE(loopDef, loopDef, lbs, ubs,
-          [&](KrnlBuilder &createKrnl, ValueRange loopInd) {
-            SmallVector<Value> args;
-            Value loadedVal = createKrnl.load(X, loopInd);
-            args.emplace_back(loadedVal);
-            // Load the remaining (scalar) values.
-            for (uint64_t i = 1; i < operands.size(); i++) {
-              if (isNoneValue(operands[i])) {
-                args.emplace_back(operands[i]);
-                continue;
-              }
-              assert(isScalarValue(operands[i]) &&
-                     "unary expected scalar additional values");
-              Value loadedVal = create.krnl.load(operands[i]);
-              args.emplace_back(loadedVal);
-            }
-            auto loweredOpResult = emitScalarOpFor<ElementwiseUnaryOp>(
-                rewriter, loc, op, elementType, args);
-            loweredOpResult =
-                opFusionHelper.emitFuseOps(loweredOpResult, loopInd);
-            // Store result in the resulting array.
-            createKrnl.store(loweredOpResult, alloc, loopInd);
-          });
-    } else {
-      Value loadedVal = create.krnl.load(X);
-      SmallVector<Value> args;
-      args.emplace_back(loadedVal);
-      // Load the remaining (scalar) values.
-      for (uint64_t i = 1; i < operands.size(); i++) {
-        if (isNoneValue(operands[i])) {
-          args.emplace_back(operands[i]);
-          continue;
-        }
-        assert(isScalarValue(operands[i]) &&
-               "unary expected scalar additional values");
-        Value loadedVal = create.krnl.load(operands[i]);
-        args.emplace_back(loadedVal);
-      }
-      auto loweredOpResult = emitScalarOpFor<ElementwiseUnaryOp>(
-          rewriter, loc, op, elementType, args);
-      loweredOpResult = opFusionHelper.emitFuseOps(loweredOpResult);
-      // Store result in the resulting array.
-      create.krnl.store(loweredOpResult, alloc);
-    }
+    // if (!isScalar) {
+    //   ValueRange loopDef = create.krnl.defineLoops(outputRank);
+    //   SmallVector<IndexExpr, 4> lbs(outputRank, LiteralIndexExpr(0));
+    //   SmallVector<IndexExpr, 4> ubs;
+    //   create.krnlIE.getShapeAsDims(X, ubs);
+    //   if (enableParallel) {
+    //     create.krnl.parallel(loopDef[0]);
+    //     LLVM_DEBUG(llvm::dbgs() << "[Parallel Op]: " << op->getName() << "\n");
+    //   }
+    //   create.krnl.iterateIE(loopDef, loopDef, lbs, ubs,
+    //       [&](KrnlBuilder &createKrnl, ValueRange loopInd) {
+    //         SmallVector<Value> args;
+    //         Value loadedVal = createKrnl.load(X, loopInd);
+    //         args.emplace_back(loadedVal);
+    //         // Load the remaining (scalar) values.
+    //         for (uint64_t i = 1; i < operands.size(); i++) {
+    //           if (isNoneValue(operands[i])) {
+    //             args.emplace_back(operands[i]);
+    //             continue;
+    //           }
+    //           assert(isScalarValue(operands[i]) &&
+    //                  "unary expected scalar additional values");
+    //           Value loadedVal = create.krnl.load(operands[i]);
+    //           args.emplace_back(loadedVal);
+    //         }
+    //         auto loweredOpResult = emitScalarOpFor<ElementwiseUnaryOp>(
+    //             rewriter, loc, op, elementType, args);
+    //         loweredOpResult =
+    //             opFusionHelper.emitFuseOps(loweredOpResult, loopInd);
+    //         // Store result in the resulting array.
+    //         createKrnl.store(loweredOpResult, alloc, loopInd);
+    //       });
+    // } else {
+    //   Value loadedVal = create.krnl.load(X);
+    //   SmallVector<Value> args;
+    //   args.emplace_back(loadedVal);
+    //   // Load the remaining (scalar) values.
+    //   for (uint64_t i = 1; i < operands.size(); i++) {
+    //     if (isNoneValue(operands[i])) {
+    //       args.emplace_back(operands[i]);
+    //       continue;
+    //     }
+    //     assert(isScalarValue(operands[i]) &&
+    //            "unary expected scalar additional values");
+    //     Value loadedVal = create.krnl.load(operands[i]);
+    //     args.emplace_back(loadedVal);
+    //   }
+    //   auto loweredOpResult = emitScalarOpFor<ElementwiseUnaryOp>(
+    //       rewriter, loc, op, elementType, args);
+    //   loweredOpResult = opFusionHelper.emitFuseOps(loweredOpResult);
+    //   // Store result in the resulting array.
+    //   create.krnl.store(loweredOpResult, alloc);
+    // }
 
     // Replace the last Op with alloc and delete the other Ops
     opFusionHelper.replaceOrEraseONNXOps(alloc);

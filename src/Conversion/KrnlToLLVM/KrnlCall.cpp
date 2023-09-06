@@ -106,6 +106,7 @@ private:
       auto int64Ty = IntegerType::get(context, 64);
       auto memRefTy = parameter.getType().dyn_cast<LLVM::LLVMStructType>();
       auto memRefRank = krnl::getRankFromMemRefType(memRefTy);
+      
       auto memRefRankVal = create.llvm.constant(int64Ty, (int64_t)memRefRank);
       Value omTensor = RuntimeAPI::callApi(rewriter, loc, apiRegistry,
           RuntimeAPI::API::CREATE_OMTENSOR, {memRefRankVal});
@@ -148,6 +149,7 @@ private:
           parameterTypeList.emplace_back(opaquePtrTy);
           parameterList.emplace_back(strPtr);
         })
+        
         .Case<IntegerAttr>([&](IntegerAttr integerAttr) {
           auto int64Ty = IntegerType::get(context, 64);
           Value cst =
@@ -155,6 +157,31 @@ private:
           parameterTypeList.emplace_back(int64Ty);
           parameterList.emplace_back(cst);
         })
+
+        .Case<ArrayAttr>([&](ArrayAttr arrayAttr) {
+          ArrayRef<Attribute> array = arrayAttr.getValue();
+          for(auto i : array) {
+            auto int8Ty = IntegerType::get(context, 8);
+            Value cst =
+                rewriter.create<LLVM::ConstantOp>(loc, int8Ty, i.cast<IntegerAttr>());
+            parameterTypeList.emplace_back(int8Ty);
+            parameterList.emplace_back(cst);
+          }
+        })
+
+         //   int *array_pointer = new int[array.size()];
+        //   for(auto i : array) {
+        //     auto int32Ty = IntegerType::get(context, 32);
+        //     Value cst =
+        //         rewriter.create<LLVM::ConstantOp>(loc, int32Ty, i.cast<IntegerAttr>());
+        //     llvm::outs() << "cst: " << cst << "\n";
+        //   }
+        //   Create a global array
+        // auto int8Ty = IntegerType::get(context, 8);
+        // auto opaquePtrTy = getPointerType(context, int8Ty);
+        // parameterTypeList.emplace_back(opaquePtrTy);
+        // parameterList.emplace_back(array_pointer);
+
         .Case<FloatAttr>([&](FloatAttr floatAttr) {
           auto f64Ty = rewriter.getF64Type();
           Value cst = rewriter.create<LLVM::ConstantOp>(loc, f64Ty,
@@ -198,6 +225,7 @@ private:
           parameterList.emplace_back(omTensor);
         })
         .Default([&](Attribute attr) {
+          llvm::errs() << attr << "\n";
           llvm_unreachable("This type of Attribute used by krnl.call is not "
                            "yet implemented");
         });
